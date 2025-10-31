@@ -74,7 +74,7 @@ block_t make_block_footer(int size)
 }
 
 struct heap {
-    int num_bytes;
+    int num_bytes; // len(heap_mem) * 4
     int[] heap_mem; // int array for alignment and ease
 };
 typedef struct heap heap_t;
@@ -84,6 +84,7 @@ typedef struct heap heap_t;
 heap_t* heap_init(int size) 
 //@requires size > 0;
 //@ensures \length(\result->heap_mem) >= size / 4;
+//@ensures \result->num_bytes >= size;
 {
     heap_t* heap = alloc(heap_t);
     int heap_size = ((size + 3) / 4);
@@ -122,16 +123,29 @@ obj_t* make_full_block(heap_t* heap, int header_pos, int footer_pos, int size, b
 }
 
 // Client functions
-void write_to_obj(heap_t* heap, obj_t* obj, int data, int index)
-//@requires 0 <= index && index < obj->size;
-{
-    int real_index = obj->start_pos + index;
-    heap->heap_mem[real_index] = data;
-}
+// These do not require that the obj be allocated this is because we love use after free errors
+// Also in theory a client could arbitrarly alloc their own objs and set whatever indexs they want
+// The goal of this is to re introduce many memory errors into C0
 
 int read_from_obj(heap_t* heap, obj_t* obj, int index)
 //@requires 0 <= index && index < obj->size;
 {
     int real_index = obj->start_pos + index;
     return heap->heap_mem[real_index];
+}
+
+
+void write_to_obj(heap_t* heap, obj_t* obj, int data, int index)
+//@requires 0 <= index && index < obj->size;
+//@ensures data == read_from_obj(heap, obj, index);
+{
+    int real_index = obj->start_pos + index;
+    heap->heap_mem[real_index] = data;
+}
+
+// This does not require obj to be allocated, because we love double free errors
+void free_obj(heap_t* heap, obj_t* obj)
+{
+    set_free(heap->heap_mem[obj->start_pos - 1]);
+    set_free(heap->heap_mem[obj->end_pos + 1]);
 }
