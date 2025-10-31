@@ -1,0 +1,137 @@
+// C0 does not have unsigned 64 bit ints, so we have less space (sad)
+// Because C0 casting is so annoying blocks are really treated as ints the whole time
+// Technically block_t is both a header and a footer, but not the actual payload lol
+// First 4 bits are metadata last 28 are the size of the block
+// The size is also not byte aligned at all unlike the C malloc implimintation we do not assume the last 4 bits are 0s (this is because of the constraints of type casting in C1)
+// Bit 1 is the free bit 1 == alloc 0 == free
+// Bit 2 is the header/footer bit 1 == header 0 == footer
+typedef int block_t;
+
+// Max size a block can be
+// Would normally be a global const, but this is a work around
+int max_blocksize(){
+    int m = 1 << 28;
+    return m - 1;
+}
+
+int get_block_size(block_t b)
+//@ensures \result >= 0;
+//@ensures \result <= max_blocksize();
+{
+    b = b >> 4;
+    // Getting rid of potentially extranious negative bits
+    return b & 0x0FFF;
+}
+
+bool is_header(block_t b)
+{
+    int h = b & 0x0002;
+    h = h >> 1;
+    // C0 is annoying about type casting this is a workaround
+    return h == 1 ? true : false;
+}
+
+bool is_alloc(block_t b){
+    b= b & 0x0001;
+    // C0 is annoying about type casting this is a workaround
+    return b == 1 ? true : false;
+}
+
+block_t set_free(block_t b)
+//@ensures !is_alloc(\result);
+{
+    if (is_alloc(b)){
+        b = b ^ 0x0001;
+    }
+    return b;
+}
+
+block_t set_alloc(block_t b)
+//@ensures is_alloc(\result);
+{
+    return b | 0x0001;
+}
+
+block_t make_block_header(int size)
+//@requires size <= max_blocksize();
+//@ensures get_block_size(\result) == size;
+//@ensures is_header(\result);
+//@ensures !is_alloc(\result);
+{
+    int b = size << 4;
+    b = b | 0x0002;
+    return b;
+}
+
+block_t make_block_footer(int size)
+//@requires size <= max_blocksize();
+//@ensures get_block_size(\result) == size;
+//@ensures !is_header(\result);
+//@ensures !is_alloc(\result);
+{
+    int b = size << 4;
+    return b;
+}
+
+struct heap {
+    int num_bytes;
+    int[] heap_mem; // int array for alignment and ease
+};
+typedef struct heap heap_t;
+
+// Size is the number of bytes of memory you want to allocate
+// Will have at least size bytes allocated
+heap_t* heap_init(int size) 
+//@requires size > 0;
+//@ensures \length(\result->heap_mem) >= size / 4;
+{
+    heap_t* heap = alloc(heap_t);
+    int heap_size = ((size + 3) / 4);
+
+    int[] heap_mem = alloc_array(int, size);
+
+    heap->num_bytes = heap_size * 4;
+    heap->heap_mem = heap_mem;
+
+    return heap;
+}
+
+struct malloced_object {
+    int start_pos; // header for this is start_pos - 1
+    int end_pos; // footer for this is end_pos + 1
+    int size; // size = end_pos - start pos
+};
+typedef struct malloced_object obj_t;
+
+obj_t* make_full_block(heap_t* heap, int header_pos, int footer_pos, int size, bool is_alloc)
+//@requires footer_pos - header_pos == size;
+{
+    heap->heap_mem[header_pos] = make_block_header(size);
+    heap->heap_mem[footer_pos] = make_block_footer(size);
+    obj_t* obj = alloc(obj_t);
+    obj->start_pos = header_pos + 1;
+    obj->end_pos = footer_pos - 1;
+    obj->size = size;
+
+    if (is_alloc){
+        set_alloc(heap->heap_mem[header_pos]);
+        set_alloc(heap->heap_mem[footer_pos]);
+    }
+
+    return obj;
+}
+
+// Client functions
+void write_to_obj(heap_t* heap, obj_t* obj, int data, int index)
+//@requires 0 <= index && index < obj->size;
+{
+    int real_index = obj->start_pos + index;
+    heap->heap_mem[real_index] = data;
+}
+
+int read_from_obj(heap_t* heap, obj_t* obj, int index)
+//@requires 0 <= index && index < obj->size;
+{
+    int real_index = obj->start_pos + index;
+    return heap->heap_mem[real_index];
+}

@@ -1,0 +1,2 @@
+// malloc returns a type of obj_t which is really an int alloc_array
+// in order to read and write data from this array the client has to call write_to_obj and read_to_obj
