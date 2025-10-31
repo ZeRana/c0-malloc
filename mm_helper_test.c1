@@ -1,0 +1,11 @@
+#use <string>
+#use <conio>
+
+
+
+int main() 
+{
+    heap_t* h = heap_init(1024);
+    printf("All tests passed. \n");
+    return 0;
+}

@@ -74,28 +74,10 @@ block_t make_block_footer(int size)
 }
 
 struct heap {
-    int num_bytes; // len(heap_mem) * 4
+    int size;
     int[] heap_mem; // int array for alignment and ease
 };
 typedef struct heap heap_t;
-
-// Size is the number of bytes of memory you want to allocate
-// Will have at least size bytes allocated
-heap_t* heap_init(int size) 
-//@requires size > 0;
-//@ensures \length(\result->heap_mem) >= size / 4;
-//@ensures \result->num_bytes >= size;
-{
-    heap_t* heap = alloc(heap_t);
-    int heap_size = ((size + 3) / 4);
-
-    int[] heap_mem = alloc_array(int, size);
-
-    heap->num_bytes = heap_size * 4;
-    heap->heap_mem = heap_mem;
-
-    return heap;
-}
 
 struct malloced_object {
     int start_pos; // header for this is start_pos - 1
@@ -104,8 +86,10 @@ struct malloced_object {
 };
 typedef struct malloced_object obj_t;
 
+// Size is only the useable data not the metadata
 obj_t* make_full_block(heap_t* heap, int header_pos, int footer_pos, int size, bool is_alloc)
-//@requires footer_pos - header_pos == size;
+//@requires header_pos + size + 1 == footer_pos;
+//@ensures \result->start_pos + \result->size - 1 == \result->end_pos;
 {
     heap->heap_mem[header_pos] = make_block_header(size);
     heap->heap_mem[footer_pos] = make_block_footer(size);
@@ -120,6 +104,24 @@ obj_t* make_full_block(heap_t* heap, int header_pos, int footer_pos, int size, b
     }
 
     return obj;
+}
+
+// Size is the number of bytes of memory you want to allocate
+heap_t* heap_init(int size) 
+//@requires size > 0;
+//@ensures \length(\result->heap_mem) == size;
+{
+    heap_t* heap = alloc(heap_t);
+    
+    int[] heap_mem = alloc_array(int, size);
+
+    heap->size = size;
+    heap->heap_mem = heap_mem;
+
+    // We don't actually need the free block this returns
+    obj_t* b = make_full_block(heap, 0, size-1, size-2, false);
+
+    return heap;
 }
 
 // Client functions

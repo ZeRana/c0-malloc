@@ -10,4 +10,8 @@ There is a garbage collecter that runs in the background at run time.
 This prevents use after free errors, NULL pointer derefrancing errors, and all of the very fun memory leaking the C does.
 
 C0 does not support a lot of features that C has, such as the preprocessor or global variables.
-Additonally there are no function pointers or generic pointers (they are however avalible in c1).
+Additonally there are no function pointers or generic pointers (they are however avalible in C1).
+Both C0 and C1 do not support arbitrary type casting which makes implementing a fully fledged malloc impossible.
+Thus this implementation of malloc supports mallocing only int arrays.
+Malloc returns a struct to the user, that the user then must call functions from the malloc library to read/write data to.
+This is highly inefficent.
