@@ -97,7 +97,7 @@ int get_obj_size(obj_t o)
 obj_t make_obj(int header_pos, int footer_pos)
 //@requires header_pos < max_blocksize() - 1;
 //@requires footer_pos <= max_blocksize();
-//@requires header_pos > footer_pos + 1;
+//@requires header_pos < footer_pos + 1;
 //@ensures get_header_pos(\result) == header_pos;
 //@ensures get_footer_pos(\result) == footer_pos;
 {
@@ -105,6 +105,7 @@ obj_t make_obj(int header_pos, int footer_pos)
 }
 
 // Size is only the useable data not the metadata
+// Real size used = size + 2
 obj_t make_full_block(heap_t* heap, int header_pos, int size, bool is_alloc)
 //@requires header_pos < heap->size;
 //@ensures get_header_pos(\result) == header_pos;
@@ -151,7 +152,7 @@ heap_t* heap_init(int size)
 int read_from_obj(heap_t* heap, obj_t obj, int index)
 //@requires 0 <= index && index < get_block_size(obj);
 {
-    int real_index = get_header_pos(obj) + index;
+    int real_index = get_header_pos(obj) + index + 1;
     return heap->heap_mem[real_index];
 }
 
@@ -160,7 +161,7 @@ void write_to_obj(heap_t* heap, obj_t obj, int data, int index)
 //@requires 0 <= index && index < get_block_size(obj);
 //@ensures data == read_from_obj(heap, obj, index);
 {
-    int real_index = get_header_pos(obj) + index;
+    int real_index = get_header_pos(obj) + index + 1;
     heap->heap_mem[real_index] = data;
 }
 

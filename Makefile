@@ -6,3 +6,10 @@ malloc-debug: mm.c1 mm_helper.c1
 
 helper-debug: mm_helper.c1 mm_helper_test.c1
 	cc0 -d mm_helper.c1 mm_helper_test.c1 -o helper-debug
+
+.PHONY: clean
+clean:
+	rm -f *.o
+	rm -f malloc
+	rm -f malloc-debug
+	rm -f helper-debug
