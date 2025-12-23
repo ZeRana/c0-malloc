@@ -1,2 +1,13 @@
 // malloc returns a type of obj_t which is really an int alloc_array
 // in order to read and write data from this array the client has to call write_to_obj and read_to_obj
+
+block_t get_prev_footer_from_header(int header_pos)
+
+
+// Returns the possition of the header where the block can fit
+// Returns -1 if block can't be found TODO: Decide if this should abort or have some sort of NULL return for fun undefined behavior
+int find_space(heap_t* h, size)
+//@requires size <= max_blocksize();
+{
+    return 0;
+}

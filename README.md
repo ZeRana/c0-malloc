@@ -13,5 +13,6 @@ C0 does not support a lot of features that C has, such as the preprocessor or gl
 Additonally there are no function pointers or generic pointers (they are however avalible in C1).
 Both C0 and C1 do not support arbitrary type casting which makes implementing a fully fledged malloc impossible.
 Thus this implementation of malloc supports mallocing only int arrays.
+Ints in C0 are 4 byte types, unlike in C which supports 8 byte types.
 Malloc returns a struct to the user, that the user then must call functions from the malloc library to read/write data to.
 This is highly inefficent.

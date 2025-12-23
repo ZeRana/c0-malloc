@@ -1,38 +1,38 @@
 // C0 does not have unsigned 64 bit ints, so we have less space (sad)
 // Because C0 casting is so annoying blocks are really treated as ints the whole time
 // Technically block_t is both a header and a footer, but not the actual payload lol
-// First 4 bits are metadata last 28 are the size of the block
-// The size is also not byte aligned at all unlike the C malloc implimintation we do not assume the last 4 bits are 0s (this is because of the constraints of type casting in C1)
-// Bit 1 is the free bit 1 == alloc 0 == free
-// Bit 2 is the header/footer bit 1 == header 0 == footer
+// First 16 bits are the size of the block (not including the header or footer) the next 4 are for metadata 
+// The size is also not byte aligned at all unlike the C malloc implementation we do not assume the last 4 bits are 0s (this is because of the constraints of type casting in C1)
+// Metadata bit 1 is the free bit 1 == alloc 0 == free
+// Metadata bit 2 is the header/footer bit 1 == header 0 == footer
 typedef int block_t;
 
-// Max size a block can be
+// Max size a block can be (including header + footer)
+// Payload size is max_blocksize() - 2
 // Would normally be a global const, but this is a work around
 int max_blocksize(){
-    int m = 1 << 28;
-    return m - 1;
+    return 0xFFFF;
 }
 
 int get_block_size(block_t b)
 //@ensures \result >= 0;
 //@ensures \result <= max_blocksize();
 {
-    b = b >> 4;
-    // Getting rid of potentially extranious negative bits
-    return b & 0x0FFF;
+    // Getting rid of potentially extraneous negative bits
+    return b & 0xFFFF;
 }
 
 bool is_header(block_t b)
 {
-    int h = b & 0x0002;
-    h = h >> 1;
+    int h = b & 0x20000;
+    h = h >> 17;
     // C0 is annoying about type casting this is a workaround
     return h == 1 ? true : false;
 }
 
 bool is_alloc(block_t b){
-    b= b & 0x0001;
+    b = b & 0x10000;
+    b = b >> 16;
     // C0 is annoying about type casting this is a workaround
     return b == 1 ? true : false;
 }
@@ -41,7 +41,7 @@ block_t set_free(block_t b)
 //@ensures !is_alloc(\result);
 {
     if (is_alloc(b)){
-        b = b ^ 0x0001;
+        b = b ^ 0x10000;
     }
     return b;
 }
@@ -49,7 +49,7 @@ block_t set_free(block_t b)
 block_t set_alloc(block_t b)
 //@ensures is_alloc(\result);
 {
-    return b | 0x0001;
+    return b | 0x10000;
 }
 
 block_t make_block_header(int size)
@@ -58,9 +58,7 @@ block_t make_block_header(int size)
 //@ensures is_header(\result);
 //@ensures !is_alloc(\result);
 {
-    int b = size << 4;
-    b = b | 0x0002;
-    return b;
+    return size | 0x20000;
 }
 
 block_t make_block_footer(int size)
@@ -69,8 +67,7 @@ block_t make_block_footer(int size)
 //@ensures !is_header(\result);
 //@ensures !is_alloc(\result);
 {
-    int b = size << 4;
-    return b;
+    return size;
 }
 
 struct heap {
@@ -79,36 +76,58 @@ struct heap {
 };
 typedef struct heap heap_t;
 
-struct malloced_object {
-    int start_pos; // header for this is start_pos - 1
-    int end_pos; // footer for this is end_pos + 1
-    int size; // size = end_pos - start pos
-};
-typedef struct malloced_object obj_t;
+// First 16 bits is the index position of the header
+// Last 16 bits is the index position of the footer
+typedef int obj_t;
+
+int get_header_pos(obj_t o){
+    return o & 0xFFFF;
+}
+
+int get_footer_pos(obj_t o){
+    return (o >> 16) & 0xFFFF;
+}
+
+int get_obj_size(obj_t o)
+//@ensures \result <= max_blocksize() - 2;
+{
+    return get_footer_pos(o) - get_header_pos(o) - 1;
+}
+
+obj_t make_obj(int header_pos, int footer_pos)
+//@requires header_pos < max_blocksize() - 1;
+//@requires footer_pos <= max_blocksize();
+//@requires header_pos > footer_pos + 1;
+//@ensures get_header_pos(\result) == header_pos;
+//@ensures get_footer_pos(\result) == footer_pos;
+{
+    return (footer_pos << 16) | header_pos;
+}
 
 // Size is only the useable data not the metadata
-obj_t* make_full_block(heap_t* heap, int header_pos, int footer_pos, int size, bool is_alloc)
-//@requires header_pos + size + 1 == footer_pos;
-//@ensures \result->start_pos + \result->size - 1 == \result->end_pos;
+obj_t make_full_block(heap_t* heap, int header_pos, int size, bool is_alloc)
+//@requires header_pos < heap->size;
+//@ensures get_header_pos(\result) == header_pos;
+//@ensures get_footer_pos(\result) == header_pos + size + 1;
 {
+    int footer_pos = header_pos + size + 1;
     heap->heap_mem[header_pos] = make_block_header(size);
     heap->heap_mem[footer_pos] = make_block_footer(size);
-    obj_t* obj = alloc(obj_t);
-    obj->start_pos = header_pos + 1;
-    obj->end_pos = footer_pos - 1;
-    obj->size = size;
+    
+
 
     if (is_alloc){
         set_alloc(heap->heap_mem[header_pos]);
         set_alloc(heap->heap_mem[footer_pos]);
     }
 
-    return obj;
+    return make_obj(header_pos, footer_pos);
 }
 
 // Size is the number of bytes of memory you want to allocate
 heap_t* heap_init(int size) 
 //@requires size > 0;
+//@requires size <= max_blocksize() - 2;
 //@ensures \length(\result->heap_mem) == size;
 {
     heap_t* heap = alloc(heap_t);
@@ -119,35 +138,35 @@ heap_t* heap_init(int size)
     heap->heap_mem = heap_mem;
 
     // We don't actually need the free block this returns
-    obj_t* b = make_full_block(heap, 0, size-1, size-2, false);
+    obj_t b = make_full_block(heap, 0, size-2, false);
 
     return heap;
 }
 
 // Client functions
 // These do not require that the obj be allocated this is because we love use after free errors
-// Also in theory a client could arbitrarly alloc their own objs and set whatever indexs they want
+// Also in theory a client could arbitrary alloc their own objs and set whatever indexs they want
 // The goal of this is to re introduce many memory errors into C0
 
-int read_from_obj(heap_t* heap, obj_t* obj, int index)
-//@requires 0 <= index && index < obj->size;
+int read_from_obj(heap_t* heap, obj_t obj, int index)
+//@requires 0 <= index && index < get_block_size(obj);
 {
-    int real_index = obj->start_pos + index;
+    int real_index = get_header_pos(obj) + index;
     return heap->heap_mem[real_index];
 }
 
 
-void write_to_obj(heap_t* heap, obj_t* obj, int data, int index)
-//@requires 0 <= index && index < obj->size;
+void write_to_obj(heap_t* heap, obj_t obj, int data, int index)
+//@requires 0 <= index && index < get_block_size(obj);
 //@ensures data == read_from_obj(heap, obj, index);
 {
-    int real_index = obj->start_pos + index;
+    int real_index = get_header_pos(obj) + index;
     heap->heap_mem[real_index] = data;
 }
 
 // This does not require obj to be allocated, because we love double free errors
-void free_obj(heap_t* heap, obj_t* obj)
+void free_obj(heap_t* heap, obj_t obj)
 {
-    set_free(heap->heap_mem[obj->start_pos - 1]);
-    set_free(heap->heap_mem[obj->end_pos + 1]);
+    set_free(heap->heap_mem[get_header_pos(obj)]);
+    set_free(heap->heap_mem[get_footer_pos(obj)]);
 }
