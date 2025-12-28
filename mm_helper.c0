@@ -7,16 +7,22 @@
 // Metadata bit 2 is the header/footer bit 1 == header 0 == footer
 typedef int block_t;
 
-// Max size a block can be (including header + footer)
-// Payload size is max_blocksize() - 2
+// Max size for the heap
 // Would normally be a global const, but this is a work around
-int max_blocksize(){
+int max_heap_size(){
     return 0xFFFF;
 }
 
+// Max size for the actual payload
+int max_payload_size()
+{
+    return max_heap_size - 2;
+}
+
+// Can be equal to max heap size if the block is the whole heap
 int get_block_size(block_t b)
 //@ensures \result >= 0;
-//@ensures \result <= max_blocksize();
+//@ensures \result <= max_heap_size();
 {
     // Getting rid of potentially extraneous negative bits
     return b & 0xFFFF;
@@ -53,7 +59,7 @@ block_t set_alloc(block_t b)
 }
 
 block_t make_block_header(int size)
-//@requires size <= max_blocksize();
+//@requires size <= max_heap_size();
 //@ensures get_block_size(\result) == size;
 //@ensures is_header(\result);
 //@ensures !is_alloc(\result);
@@ -62,7 +68,7 @@ block_t make_block_header(int size)
 }
 
 block_t make_block_footer(int size)
-//@requires size <= max_blocksize();
+//@requires size <= max_heap_size();
 //@ensures get_block_size(\result) == size;
 //@ensures !is_header(\result);
 //@ensures !is_alloc(\result);
@@ -74,6 +80,7 @@ struct heap {
     int size;
     int[] heap_mem; // int array for alignment and ease
 };
+
 typedef struct heap heap_t;
 
 // First 16 bits is the index position of the header
@@ -89,14 +96,14 @@ int get_footer_pos(obj_t o){
 }
 
 int get_obj_size(obj_t o)
-//@ensures \result <= max_blocksize() - 2;
+//@ensures \result <= max_payload_size();
 {
     return get_footer_pos(o) - get_header_pos(o) - 1;
 }
 
 obj_t make_obj(int header_pos, int footer_pos)
-//@requires header_pos < max_blocksize() - 1;
-//@requires footer_pos <= max_blocksize();
+//@requires header_pos <= max_heap_size() - 2;
+//@requires footer_pos <= max_heap_size();
 //@requires header_pos < footer_pos + 1;
 //@ensures get_header_pos(\result) == header_pos;
 //@ensures get_footer_pos(\result) == footer_pos;
@@ -128,7 +135,7 @@ obj_t make_full_block(heap_t* heap, int header_pos, int size, bool is_alloc)
 // Size is the number of bytes of memory you want to allocate
 heap_t* heap_init(int size) 
 //@requires size > 0;
-//@requires size <= max_blocksize() - 2;
+//@requires size <= max_payload_size();
 //@ensures \length(\result->heap_mem) == size;
 {
     heap_t* heap = alloc(heap_t);
