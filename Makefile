@@ -4,8 +4,8 @@ malloc: mm.c0 mm_helper.c0
 malloc-debug: mm.c0 mm_helper.c0
 	cc0 -d mm_helper.c0 mm.c0 -o malloc-debug
 
-helper-debug: mm_helper.c0 mm_helper_test.c0
-	cc0 -d -s mm_helper.c0 mm_helper_test.c0 -o helper-debug
+helper-debug: mm_helper.c0 mm_rw.c0 mm_helper_test.c0
+	cc0 -d -s mm_helper.c0 mm_rw.c0 mm_helper_test.c0 -o helper-debug
 	mv mm_helper_test.c0.c compiled/mm_helper_test.c0.c
 	mv mm_helper_test.c0.h compiled/mm_helper_test.c0.h
 

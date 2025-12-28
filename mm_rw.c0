@@ -1,0 +1,48 @@
+// Since malloc returns a special type and you can't read/write directly to your allocated memory (yipee overhead)
+// You need to interface with the library using these functions
+
+// These do not require that the obj be allocated this is because we love use after free errors
+// Also in theory a client could arbitrary create their own objs and set whatever indexs they want
+// The goal of this is to re introduce many memory errors into C0
+
+int read_from_obj(heap_t* heap, obj_t obj, int index)
+//@requires 0 <= index && index < get_block_size(obj);
+{
+    int real_index = get_header_pos(obj) + index + 1;
+    return heap->heap_mem[real_index];
+}
+
+
+void write_to_obj(heap_t* heap, obj_t obj, int data, int index)
+//@requires 0 <= index && index < get_block_size(obj);
+//@ensures data == read_from_obj(heap, obj, index);
+{
+    int real_index = get_header_pos(obj) + index + 1;
+    heap->heap_mem[real_index] = data;
+}
+
+// Little endian encoding
+// Byte 0 is highest memory value
+// Byte 3 is the lowest memory value
+
+int read_byte_from_obj(heap_t* heap, obj_t, int index, int byte_num)
+//@requires 0 <= index && index < get_block_size(obj);
+//@requires 0 <= byte_num <= 3
+//@ensures 0 <= \result <= 255
+{
+  int real_index = get_header_pos(obj) + index + 1;
+  int data = heap->heap_mem[real_index];
+  data = data >> (3 - byte_num);
+  return data & 0xFF;  
+}
+
+
+void write_byte_to_obj(heap_t* heap, obj_t obj, int data, int index, int byte_num)
+//@requires 0 <= index && index < get_block_size(obj);
+//@requires 0 <= data <= 255
+//@requires 0 <= byte_num <= 3
+//@ensures data == read_byte_from_obj(heap, obj, index, byte_num);
+{
+    int real_index = get_header_pos(obj) + index + 1;
+    heap->heap_mem[real_index] = (data << (3 - byte_num));
+}
