@@ -1,8 +1,8 @@
 malloc: mm.c0 mm_helper.c0
 	cc0 mm_helper.c0 mm.c0 -o malloc
 
-malloc-debug: mm.c0 mm_helper.c0
-	cc0 -d mm_helper.c0 mm.c0 -o malloc-debug
+malloc-debug: mm.c0 mm_helper.c0 mm_rw.c0
+	cc0 -d mm_helper.c0 mm_rw.c0 mm.c0 -o malloc-debug
 
 helper-debug: mm_helper.c0 mm_rw.c0 mm_helper_test.c0
 	cc0 -d -s mm_helper.c0 mm_rw.c0 mm_helper_test.c0 -o helper-debug

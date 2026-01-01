@@ -1,13 +1,127 @@
-// malloc returns a type of obj_t which is really an int alloc_array
-// in order to read and write data from this array the client has to call write_to_obj and read_to_obj
-
-block_t get_prev_footer_from_header(int header_pos)
-
-
-// Returns the possition of the header where the block can fit
-// Returns -1 if block can't be found TODO: Decide if this should abort or have some sort of NULL return for fun undefined behavior
-int find_space(heap_t* h, size)
-//@requires size <= max_blocksize();
+#use <conio>
+// Checks the heap invariants
+bool check_heap(heap_t* h)
 {
-    return 0;
+    int cur_header_pos = 0;
+    int cur_size = get_block_size(h->heap_mem[cur_header_pos]);
+    int cur_footer_pos = cur_header_pos + cur_size + 1;
+
+    while (cur_header_pos < h->size)
+    {
+        // First and last block should both say their respective prev and last block are allocated
+        if (cur_header_pos == 0) {
+            if (get_prev_alloc(h, cur_header_pos) == false) {
+                printf("The first block should have the prev block allocated\n");
+                return false;
+            }
+        } else {
+            int prev_block_footer = cur_header_pos - 1;
+            if (is_alloc(h->heap_mem[prev_block_footer]) != is_prev_alloc(h->heap_mem[cur_header_pos])) {
+                printf("Previous allocation bit does not match up with actual allocation status");
+                return false;
+            }
+        }
+        if (cur_footer_pos == h->size - 1) {
+            if (get_next_alloc(h, cur_header_pos) == false) {
+                printf("The last block should have the next block allocated\n");
+                return false;
+            }
+        } else {
+            int next_block_header = cur_footer_pos + 1;
+            if (is_alloc(h->heap_mem[next_block_header]) != is_prev_alloc(h->heap_mem[cur_header_pos])) {
+                printf("Next allocation bit does not match up with actual allocation status");
+                return false;
+            }
+        }
+
+        if (cur_size != get_block_size(h->heap_mem[cur_footer_pos])){
+            printf("Block sizes don't match on header/footer\n");
+            return false;
+        }
+
+        // Checking that headers and footers are marked correctly
+        if (is_header(h->heap_mem[cur_header_pos]) == false){
+            printf("Header block incorrectly marked\n");
+            return false;
+        }
+        if (is_header(h->heap_mem[cur_footer_pos]) == true){
+            printf("Footer block incorrectly marked\n");
+            return false;
+        }
+
+        // Checking to make sure the headers agree on metadata
+        if (is_alloc(h->heap_mem[cur_header_pos]) != is_alloc(h->heap_mem[cur_footer_pos])){
+            printf ("Alloc bits don't match on header/footer\n");
+            return false;
+        }
+        if (is_prev_alloc(h->heap_mem[cur_header_pos]) != is_prev_alloc(h->heap_mem[cur_footer_pos])){
+            printf ("Prev alloc bits don't match on header/footer\n");
+            return false;
+        }
+        if (is_next_alloc(h->heap_mem[cur_header_pos]) != is_next_alloc(h->heap_mem[cur_footer_pos])){
+            printf ("Next alloc bits don't match on header/footer\n");
+            return false;
+        }
+
+        cur_header_pos = cur_footer+pos + 1;
+        cur_size = get_block_size(h->heap_mem[cur_header_pos]);
+        int cur_footer_pos = cur_header_pos + cur_size + 1;
+    }
+    return true;
+}
+
+void coalesce (heap_t* h, int header_pos)
+//@ensures check_heap(h);
+{
+    
+    if (!is_prev_alloc(h->heap_mem[header_pos]) && !is_next_alloc(h->heap_mem[header_pos]))
+    {
+        // Case where both sides get coalesced
+        int new_header_pos = header_pos - get_block_size(h->heap_mem[header_pos - 1]);
+        int header_next = header_pos + get_block_size(h->heap_mem[header_pos]);
+        bool prev_alloc = is_prev_alloc(h->heap_mem[new_header_pos]);
+        bool next_alloc = is_next_alloc(h->heap_mem[header_next]);
+        //@assert is_header(h->heap_mem[header_next]);
+        int new_size = get_block_size(h->heap_mem[header_pos]) + get_block_size(h->heap_mem[new_header_pos]) + get_block_size(h->heap_mem[header_next]) - 2;
+        obj_t o = make_full_block(h, new_header_pos, new_size, false, prev_alloc, next_alloc);
+    } else if (!is_prev_alloc(h->heap_mem[header_pos]) && is_next_alloc(h->heap_mem[header_pos])) 
+    {
+        // Case where only prev is free
+        int new_header_pos = header_pos - get_block_size(h->heap_mem[header_pos - 1]);
+        bool prev_alloc = is_prev_alloc(h->heap_mem[new_header_pos]);
+        bool next_alloc = is_next_alloc(h->heap_mem[header_pos]);
+        int new_size = get_block_size(h->heap_mem[header_pos]) + get_block_size(h->heap_mem[new_header_pos]) - 2;
+        obj_t o = make_full_block(h, new_header_pos, new_size, false, prev_alloc, next_alloc);
+    } else if (is_prev_alloc(h->heap_mem[header_pos]) && !is_next_alloc(h->heap_mem[header_pos]))
+    {
+        // Case where only next is free
+        int header_next = header_pos + get_block_size(h->heap_mem[header_pos]);
+        bool prev_alloc = is_prev_alloc(h->heap_mem[header_pos]);
+        bool next_alloc = is_next_alloc(h->heap_mem[header_next]);
+        //@assert is_header(h->heap_mem[header_next]);
+        int new_size = get_block_size(h->heap_mem[header_pos]) + get_block_size(h->heap_mem[header_next]) - 2;
+        obj_t o = make_full_block(h, header_pos, new_size, false, prev_alloc, next_alloc);
+    }
+}
+
+// Returns the allocated object
+obj_t split_block(heap_t* h, int header_pos, int size)
+//@assert check_heap(h);
+{
+    int cur_block_size = get_block_size(h->heap_mem[header_pos]);
+    if (4 + size > cur_block_size) {
+        int next_header_pos = header_pos + size;
+        int new_size = cur_block_size - size - 2;
+        bool prev_alloc = get_prev_alloc(h->heap_mem[header_pos]);
+        bool next_alloc = get_next_alloc((h->heap_mem[header_pos]));
+        obj_t o = make_full_block(h, header_pos, size, true, prev_alloc, false);
+        obj_t discard = make_full_block(h, new_header_pos, new_size, false, true, next_alloc);
+        return o;
+    } else {
+        int real_size = cur_block_size - size - 2;
+        bool prev_alloc = get_prev_alloc(h->heap_mem[header_pos]);
+        bool next_alloc = get_next_alloc((h->heap_mem[header_pos]));
+        obj_t o = make_full_block(h, header_pos, real_size, true, prev_alloc, next_alloc);
+        return o;
+    }
 }

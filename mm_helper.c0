@@ -25,6 +25,7 @@ int max_payload_size()
 }
 
 // Can be equal to max heap size if the block is the whole heap
+// Equal get obj size + 2
 int get_block_size(block_t b)
 //@ensures \result >= 0;
 //@ensures \result <= max_heap_size();
@@ -187,6 +188,7 @@ int get_footer_pos(obj_t o){
     return (o >> 16) & 0xFFFF;
 }
 
+// Equals get block size - 2
 int get_obj_size(obj_t o)
 //@ensures \result <= max_payload_size();
 {
@@ -212,10 +214,12 @@ obj_t make_full_block(heap_t* heap, int header_pos, int size, bool is_alloced, b
 {
     int footer_pos = header_pos + size + 1;
 
-    heap->heap_mem[header_pos] = make_block_header(size, is_alloced, prev_alloc, next_alloc);
-    heap->heap_mem[footer_pos] = make_block_footer(size, is_alloced, prev_alloc, next_alloc);
+    heap->heap_mem[header_pos] = make_block_header(size + 2, is_alloced, prev_alloc, next_alloc);
+    heap->heap_mem[footer_pos] = make_block_footer(size + 2, is_alloced, prev_alloc, next_alloc);
     
-    return make_obj(header_pos, footer_pos);
+    obj_t o = make_obj(header_pos, footer_pos);
+    //@assert get_block_size(heap->heap_mem[header_pos]) == get_obj_size(o) + 2;
+    return o;
 }
 
 // Size is the number of bytes of memory you want to allocate
@@ -242,7 +246,7 @@ void print_block(heap_t* h, int header_pos)
 //@requires is_header(h->heap_mem[header_pos]);
 {
     int size = get_block_size(h->heap_mem[header_pos]);
-    int footer_pos = header_pos + 1 + size;
+    int footer_pos = header_pos - 1 + size;
 
     printf("Header: \n %d block size \n", size);
     string metadata = int2hex((h->heap_mem[header_pos] >> 16) & 0xF);
@@ -273,7 +277,7 @@ void print_heap(heap_t* h)
     while(cur_header_pos < h->size)
     {
         print_block(h, cur_header_pos);
-        cur_header_pos += get_block_size(h->heap_mem[cur_header_pos]) + 2;
+        cur_header_pos += get_block_size(h->heap_mem[cur_header_pos]);
     }
     printf("End Heap \n");
 }
