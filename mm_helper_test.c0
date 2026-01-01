@@ -6,11 +6,14 @@
 int main() 
 {
     heap_t* h = heap_init(1024);
-    obj_t o = make_full_block(h, 2, 3, true);
+    obj_t o = make_full_block(h, 2, 4, true, false, false);
     write_to_obj(h, o, 10, 0);
     assert(h->heap_mem[3] == 10);
     write_to_obj(h, o, 11, 1);
     assert(h->heap_mem[4] == 11);
+    write_byte_to_obj(h, o, 0x1, 2, 1);
+    // Checking that I did the endianness right
+    assert(h->heap_mem[5] == 0x10000);
     printf("All tests passed. \n");
     return 0;
 }

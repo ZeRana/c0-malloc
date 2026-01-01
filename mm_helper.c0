@@ -1,3 +1,5 @@
+#use <conio>
+
 // C0 does not have unsigned 64 bit ints, so we have less space (sad)
 // Because C0 casting is so annoying blocks are really treated as ints the whole time
 // Technically block_t is both a header and a footer, but not the actual payload lol
@@ -5,6 +7,8 @@
 // The size is also not byte aligned at all unlike the C malloc implementation we do not assume the last 4 bits are 0s (this is because of the constraints of type casting in C1)
 // Metadata bit 1 is the free bit 1 == alloc 0 == free
 // Metadata bit 2 is the header/footer bit 1 == header 0 == footer
+// Metadata bit 3 is if the prev block is allocated 1 == alloc 0 == free
+// Metadata bit 4 is if the next block is allocated 1 == alloc 0 == free
 typedef int block_t;
 
 // Max size for the heap
@@ -16,7 +20,7 @@ int max_heap_size(){
 // Max size for the actual payload
 int max_payload_size()
 {
-    return max_heap_size - 2;
+    return max_heap_size() - 2;
 }
 
 // Can be equal to max heap size if the block is the whole heap
@@ -58,22 +62,109 @@ block_t set_alloc(block_t b)
     return b | 0x10000;
 }
 
-block_t make_block_header(int size)
+block_t set_alloc_bit(block_t b, bool is_alloced)
+//@ensures is_alloc(\result) == is_alloced;
+{
+    if (is_alloced) {
+        return set_alloc(b);
+    } else {
+        return set_free(b);
+    }
+}
+
+bool is_prev_alloc(block_t b){
+    b = b & 0x40000;
+    b = b >> 18;
+    // C0 is annoying about type casting this is a workaround
+    return b == 1 ? true : false;
+}
+
+bool is_next_alloc(block_t b)
+{
+    b = b & 0x80000;
+    b = b >> 19;
+    // C0 is annoying about type casting this is a workaround
+    return b == 1 ? true : false;
+}
+
+block_t set_prev_alloc(block_t b)
+//@ensures is_prev_alloc(\result);
+{
+    return b | 0x40000;
+}
+
+block_t set_prev_free(block_t b)
+//@ensures !is_prev_alloc(\result);
+{
+    if (is_prev_alloc(b)){
+        b = b ^ 0x40000;
+    }
+    return b;
+}
+
+block_t set_next_alloc(block_t b)
+//@ensures is_next_alloc(\result);
+{
+    return b | 0x80000;
+}
+
+block_t set_next_free(block_t b)
+//@ensures !is_next_alloc(\result);
+{
+    if (is_next_alloc(b)){
+        b = b ^ 0x80000;
+    }
+    return b;
+}
+
+block_t set_prev(block_t b, bool is_alloced)
+//@ensures is_prev_alloc(\result) == is_alloced;
+{
+    if (is_alloced) {
+        return set_prev_alloc(b);
+    } else {
+        return set_prev_free(b);
+    }
+}
+
+block_t set_next(block_t b, bool is_alloced)
+//@ensures is_next_alloc(\result) == is_alloced;
+{
+  if (is_alloced) {
+        return set_next_alloc(b);
+    } else {
+        return set_next_free(b);
+    }  
+}
+
+block_t make_block_header(int size, bool is_alloced, bool prev_alloc, bool next_alloc)
 //@requires size <= max_heap_size();
 //@ensures get_block_size(\result) == size;
 //@ensures is_header(\result);
-//@ensures !is_alloc(\result);
+//@ensures is_alloc(\result) == is_alloced;
+//@ensures is_prev_alloc(\result) == prev_alloc;
+//@ensures is_next_alloc(\result) == next_alloc;
 {
-    return size | 0x20000;
+    block_t b = size | 0x20000;
+    b = set_alloc_bit(b, is_alloced);
+    b = set_prev(b, prev_alloc);
+    b = set_next(b, next_alloc);
+    return b;
 }
 
-block_t make_block_footer(int size)
+block_t make_block_footer(int size, bool is_alloced, bool prev_alloc, bool next_alloc)
 //@requires size <= max_heap_size();
 //@ensures get_block_size(\result) == size;
 //@ensures !is_header(\result);
-//@ensures !is_alloc(\result);
+//@ensures is_alloc(\result) == is_alloced;
+//@ensures is_prev_alloc(\result) == prev_alloc;
+//@ensures is_next_alloc(\result) == next_alloc;
 {
-    return size;
+    block_t b = size;
+    b = set_alloc_bit(b, is_alloced);
+    b = set_prev(b, prev_alloc);
+    b = set_next(b, next_alloc);
+    return b;
 }
 
 struct heap {
@@ -113,22 +204,16 @@ obj_t make_obj(int header_pos, int footer_pos)
 
 // Size is only the useable data not the metadata
 // Real size used = size + 2
-obj_t make_full_block(heap_t* heap, int header_pos, int size, bool is_alloc)
+obj_t make_full_block(heap_t* heap, int header_pos, int size, bool is_alloced, bool prev_alloc, bool next_alloc)
 //@requires header_pos < heap->size;
 //@ensures get_header_pos(\result) == header_pos;
 //@ensures get_footer_pos(\result) == header_pos + size + 1;
 {
     int footer_pos = header_pos + size + 1;
-    heap->heap_mem[header_pos] = make_block_header(size);
-    heap->heap_mem[footer_pos] = make_block_footer(size);
+
+    heap->heap_mem[header_pos] = make_block_header(size, is_alloced, prev_alloc, next_alloc);
+    heap->heap_mem[footer_pos] = make_block_footer(size, is_alloced, prev_alloc, next_alloc);
     
-
-
-    if (is_alloc){
-        set_alloc(heap->heap_mem[header_pos]);
-        set_alloc(heap->heap_mem[footer_pos]);
-    }
-
     return make_obj(header_pos, footer_pos);
 }
 
@@ -146,13 +231,10 @@ heap_t* heap_init(int size)
     heap->heap_mem = heap_mem;
 
     // We don't actually need the free block this returns
-    obj_t b = make_full_block(heap, 0, size-2, false);
+    obj_t b = make_full_block(heap, 0, size-2, false, true, true);
 
     return heap;
 }
-
-// Client functions
-
 
 // This does not require obj to be allocated, because we love double free errors
 void free_obj(heap_t* heap, obj_t obj)
