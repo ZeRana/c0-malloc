@@ -48,3 +48,9 @@ void write_byte_to_obj(heap_t* heap, obj_t obj, int data, int index, int byte_nu
     int shift = (3 - byte_num) * 8;
     heap->heap_mem[real_index] = (data << shift);
 }
+
+// Returning 0 from malloc is equivalent to returning NULL
+bool is_null(obj_t* o)
+{
+    return o == 0;
+}

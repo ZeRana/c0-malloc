@@ -125,3 +125,26 @@ obj_t split_block(heap_t* h, int header_pos, int size)
         return o;
     }
 }
+
+// Returning 0 is equivalent to returning NULL
+obj_t malloc(heap_t* h, int size)
+//@requires check_heap(h);
+//@ensures check_heap(h);
+{
+    // O(n) search, this is what real coding looks like
+    int cur_header_pos = 0;
+    while(cur_header_pos < h->size && (is_alloc(h->heap_mem[cur_header_pos])) || get_block_size(h->heap_mem[cur_header_pos]) - 2 < size){
+        cur_header_pos += get_block_size(h->heap_mem[cur_header_pos]);
+    }
+    if (cur_header_pos >= h->size){
+        return 0;
+    }
+    return split_block(h, cur_header_pos, size);
+}
+
+void free(heap_t *h, obj_t obj)
+//@requires check_heap(h);
+//@ensures check_heap(h);
+{
+    coalesce(h, get_header_pos(obj));
+}
