@@ -1,4 +1,5 @@
 #use <conio>
+#use <util>
 
 // C0 does not have unsigned 64 bit ints, so we have less space (sad)
 // Because C0 casting is so annoying blocks are really treated as ints the whole time
@@ -236,9 +237,43 @@ heap_t* heap_init(int size)
     return heap;
 }
 
-// This does not require obj to be allocated, because we love double free errors
-void free_obj(heap_t* heap, obj_t obj)
+// Pass in block header
+void print_block(heap_t* h, int header_pos)
+//@requires is_header(h->heap_mem[header_pos]);
 {
-    set_free(heap->heap_mem[get_header_pos(obj)]);
-    set_free(heap->heap_mem[get_footer_pos(obj)]);
+    int size = get_block_size(h->heap_mem[header_pos]);
+    int footer_pos = header_pos + 1 + size;
+
+    printf("Header: \n %d block size \n", size);
+    string metadata = int2hex((h->heap_mem[header_pos] >> 16) & 0xF);
+
+    // Lol no need to print freed memory
+    printf("Metadata: %s \n", metadata);
+        if (is_alloc(h->heap_mem[header_pos])) {
+            printf("Data: \n");
+            int data_pos = header_pos + 1;
+            int index = 0;
+            while (data_pos < footer_pos){
+            printf("[%d], %d ", index, (h->heap_mem[data_pos]));
+            index++;
+            data_pos++;
+        }
+    }
+    
+    size = get_block_size(h->heap_mem[footer_pos]);
+    printf("Footer: \n %d block size \n", size);
+    metadata = int2hex((h->heap_mem[footer_pos] >> 16) & 0xF);
+    printf("Metadata: %s \n\n\n", metadata);
+}
+
+void print_heap(heap_t* h)
+{
+    printf("Start Heap \n");
+    int cur_header_pos = 0;
+    while(cur_header_pos < h->size)
+    {
+        print_block(h, cur_header_pos);
+        cur_header_pos += get_block_size(h->heap_mem[cur_header_pos]) + 2;
+    }
+    printf("End Heap \n");
 }
