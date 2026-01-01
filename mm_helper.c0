@@ -205,6 +205,28 @@ obj_t make_obj(int header_pos, int footer_pos)
     return (footer_pos << 16) | header_pos;
 }
 
+// Updates the prev_alloc bit of the next block
+void update_prev(heap_t* h, int header_pos, bool is_cur_alloc)
+{
+    int next_header_pos = header_pos + get_block_size(h->heap_mem[header_pos]);
+    int next_footer_pos = get_block_size(h->heap_mem[next_header_pos]) -1;
+
+    h->heap_mem[next_header_pos] = set_prev(h->heap_mem[next_header_pos], is_cur_alloc);
+    h->heap_mem[next_footer_pos] = set_prev(h->heap_mem[next_footer_pos], is_cur_alloc);
+
+}
+
+// Updates the next_alloc bit of the prev block
+void update_next(heap_t* h, int header_pos, bool is_cur_alloc)
+{
+    int prev_footer_pos = header_pos - 1;
+    int prev_header_pos = prev_footer_pos - get_block_size(h->heap_mem[prev_footer_pos]) + 1;
+
+    h->heap_mem[prev_header_pos] = set_next(h->heap_mem[prev_header_pos], is_cur_alloc);
+    h->heap_mem[prev_footer_pos] = set_next(h->heap_mem[prev_footer_pos], is_cur_alloc);
+
+}
+
 // Size is only the useable data not the metadata
 // Real size used = size + 2
 obj_t make_full_block(heap_t* heap, int header_pos, int size, bool is_alloced, bool prev_alloc, bool next_alloc)
@@ -241,6 +263,19 @@ heap_t* heap_init(int size)
     return heap;
 }
 
+void print_metadata(block_t b){
+    printf("Metadata: \n");
+    if (is_alloc(b)){
+        printf("Is allocted \n");
+    }
+    if (is_prev_alloc(b)){
+        printf("Prev is allocted \n");
+    }
+    if (is_next_alloc(b)){
+        printf("Next is allocted \n");
+    }
+}
+
 // Pass in block header
 void print_block(heap_t* h, int header_pos)
 //@requires is_header(h->heap_mem[header_pos]);
@@ -248,36 +283,34 @@ void print_block(heap_t* h, int header_pos)
     int size = get_block_size(h->heap_mem[header_pos]);
     int footer_pos = header_pos - 1 + size;
 
-    printf("Header: \n %d block size \n", size);
-    string metadata = int2hex((h->heap_mem[header_pos] >> 16) & 0xF);
+    printf("\nHeader: \n%d block size \n", size);
+    print_metadata(h->heap_mem[header_pos]);
 
     // Lol no need to print freed memory
-    printf("Metadata: %s \n", metadata);
         if (is_alloc(h->heap_mem[header_pos])) {
-            printf("Data: \n");
+            printf("\nData: \n");
             int data_pos = header_pos + 1;
             int index = 0;
             while (data_pos < footer_pos){
-            printf("[%d], %d ", index, (h->heap_mem[data_pos]));
+            printf("([%d], %d) ", index, (h->heap_mem[data_pos]));
             index++;
             data_pos++;
         }
     }
     
     size = get_block_size(h->heap_mem[footer_pos]);
-    printf("Footer: \n %d block size \n", size);
-    metadata = int2hex((h->heap_mem[footer_pos] >> 16) & 0xF);
-    printf("Metadata: %s \n\n\n", metadata);
+    printf("\n\nFooter: \n%d block size \n", size);
+    print_metadata(h->heap_mem[footer_pos]);
 }
 
 void print_heap(heap_t* h)
 {
-    printf("Start Heap \n");
+    printf("\nStart Heap \n");
     int cur_header_pos = 0;
     while(cur_header_pos < h->size)
     {
         print_block(h, cur_header_pos);
         cur_header_pos += get_block_size(h->heap_mem[cur_header_pos]);
     }
-    printf("End Heap \n");
+    printf("End Heap \n\n");
 }

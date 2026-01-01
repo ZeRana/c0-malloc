@@ -1,0 +1,12 @@
+#use <string>
+#use <conio>
+
+int main() 
+{
+    heap_t* h = heap_init(64);
+    obj_t o = malloc(h, 10);
+    obj_t o1 = malloc(h, 20);
+    obj_t o2 = malloc(h, 10);
+    printf("All tests passed. \n");
+    return 0;
+}
