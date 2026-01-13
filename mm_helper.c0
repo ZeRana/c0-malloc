@@ -12,6 +12,13 @@
 // Metadata bit 4 is if the next block is allocated 1 == alloc 0 == free
 typedef int block_t;
 
+struct heap {
+    int size;
+    int[] heap_mem; // int array for alignment and ease
+};
+
+typedef struct heap heap_t;
+
 // Max size for the heap
 // Would normally be a global const, but this is a work around
 int max_heap_size(){
@@ -74,6 +81,23 @@ block_t set_alloc_bit(block_t b, bool is_alloced)
     }
 }
 
+int get_footer_from_header(heap_t* h, int header_pos)
+{
+    return header_pos + get_block_size(h->heap_mem[header_pos]) - 1;
+}
+
+int get_header_from_footer(heap_t* h, int footer_pos){
+    return footer_pos - get_block_size(h->heap_mem[footer_pos]) + 1;
+}
+
+// Sets the alloc bit for both the header and the footer of a block
+void set_alloc_block(heap_t* h, int header_pos, bool is_alloced)
+{
+    int footer_pos = get_footer_from_header(h, header_pos);
+    h->heap_mem[header_pos] = set_alloc_bit(h->heap_mem[header_pos], is_alloced);
+    h->heap_mem[footer_pos] = set_alloc_bit(h->heap_mem[footer_pos], is_alloced);
+}
+
 bool is_prev_alloc(block_t b){
     b = b & 0x40000;
     b = b >> 18;
@@ -129,6 +153,14 @@ block_t set_prev(block_t b, bool is_alloced)
     }
 }
 
+// Sets the prev bit for the header and the footer of a block
+void set_prev_block(heap_t* h, int header_pos,  bool is_alloced)
+{
+    int footer_pos = get_footer_from_header(h, header_pos);
+    h->heap_mem[header_pos] = set_prev(h->heap_mem[header_pos], is_alloced);
+    h->heap_mem[footer_pos] = set_prev(h->heap_mem[footer_pos], is_alloced);
+}
+
 block_t set_next(block_t b, bool is_alloced)
 //@ensures is_next_alloc(\result) == is_alloced;
 {
@@ -137,6 +169,14 @@ block_t set_next(block_t b, bool is_alloced)
     } else {
         return set_next_free(b);
     }  
+}
+
+// Sets the next bit for the header and the footer of a block
+void set_next_block(heap_t* h, int header_pos,  bool is_alloced)
+{
+    int footer_pos = get_footer_from_header(h, header_pos);
+    h->heap_mem[header_pos] = set_next(h->heap_mem[header_pos], is_alloced);
+    h->heap_mem[footer_pos] = set_next(h->heap_mem[footer_pos], is_alloced);
 }
 
 block_t make_block_header(int size, bool is_alloced, bool prev_alloc, bool next_alloc)
@@ -169,13 +209,6 @@ block_t make_block_footer(int size, bool is_alloced, bool prev_alloc, bool next_
     return b;
 }
 
-struct heap {
-    int size;
-    int[] heap_mem; // int array for alignment and ease
-};
-
-typedef struct heap heap_t;
-
 // First 16 bits is the index position of the header
 // Last 16 bits is the index position of the footer
 typedef int obj_t;
@@ -206,25 +239,29 @@ obj_t make_obj(int header_pos, int footer_pos)
 }
 
 // Updates the prev_alloc bit of the next block
-void update_prev(heap_t* h, int header_pos, bool is_cur_alloc)
+void update_next_block(heap_t* h, int header_pos, bool is_cur_alloc)
 {
     int next_header_pos = header_pos + get_block_size(h->heap_mem[header_pos]);
-    int next_footer_pos = get_block_size(h->heap_mem[next_header_pos]) -1;
-
-    h->heap_mem[next_header_pos] = set_prev(h->heap_mem[next_header_pos], is_cur_alloc);
-    h->heap_mem[next_footer_pos] = set_prev(h->heap_mem[next_footer_pos], is_cur_alloc);
-
+    
+    set_prev_block(h, next_header_pos, is_cur_alloc);
 }
 
 // Updates the next_alloc bit of the prev block
-void update_next(heap_t* h, int header_pos, bool is_cur_alloc)
+void update_prev_block(heap_t* h, int header_pos, bool is_cur_alloc)
 {
-    int prev_footer_pos = header_pos - 1;
-    int prev_header_pos = prev_footer_pos - get_block_size(h->heap_mem[prev_footer_pos]) + 1;
+    int prev_header_pos = header_pos - get_block_size(h->heap_mem[header_pos - 1]) + 1;
 
-    h->heap_mem[prev_header_pos] = set_next(h->heap_mem[prev_header_pos], is_cur_alloc);
-    h->heap_mem[prev_footer_pos] = set_next(h->heap_mem[prev_footer_pos], is_cur_alloc);
+    set_next_block(h, prev_header_pos, is_cur_alloc);
 
+}
+
+void update_surrounding_blocks(heap_t* h, int header_pos, bool is_cur_alloc){
+    if (header_pos != 0) {
+        update_prev_block(h, header_pos, is_cur_alloc);
+    }
+    if (get_block_size(h->heap_mem[header_pos]) + header_pos != h->size){
+        update_next_block(h, header_pos, is_cur_alloc);
+    }
 }
 
 // Size is only the useable data not the metadata
