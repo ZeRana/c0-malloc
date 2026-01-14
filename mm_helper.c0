@@ -249,7 +249,7 @@ void update_next_block(heap_t* h, int header_pos, bool is_cur_alloc)
 // Updates the next_alloc bit of the prev block
 void update_prev_block(heap_t* h, int header_pos, bool is_cur_alloc)
 {
-    int prev_header_pos = header_pos - get_block_size(h->heap_mem[header_pos - 1]) + 1;
+    int prev_header_pos = header_pos - get_block_size(h->heap_mem[header_pos - 1]);
 
     set_next_block(h, prev_header_pos, is_cur_alloc);
 

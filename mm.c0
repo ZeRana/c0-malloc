@@ -69,6 +69,7 @@ bool check_heap(heap_t* h)
             return false;
         }
         if (is_next_alloc(h->heap_mem[cur_header_pos]) != is_next_alloc(h->heap_mem[cur_footer_pos])){
+            print_heap(h);
             printf ("Next alloc bits don't match on header/footer\n");
             printf("Failed at header position %d \n", cur_header_pos);
             return false;
@@ -135,26 +136,26 @@ obj_t split_block(heap_t* h, int header_pos, int size)
         int next_header_pos = header_pos + size + 2;
         // Subtract 2 twice for both blocks meta data
         int new_size = cur_block_size - size - 4;
-        bool prev_alloc = is_prev_alloc(h->heap_mem[header_pos]);
-        //@assert prev_alloc == true;
-        bool next_alloc = is_next_alloc((h->heap_mem[header_pos]));
-        //@assert next_alloc == true;
-        o = make_full_block(h, header_pos, size, true, prev_alloc, false);
+        
+        // This should be initially surrounded on both sides by alloced blocks
+        o = make_full_block(h, header_pos, size, true, true, false);
         //@assert get_footer_pos(o) + 1 == next_header_pos;
-        obj_t discard = make_full_block(h, next_header_pos, new_size, false, true, next_alloc);
+        obj_t discard = make_full_block(h, next_header_pos, new_size, false, true, true);
         //@assert get_header_pos(discard) == next_header_pos;
         //@assert get_obj_size(o) + get_obj_size(discard) + 4 == cur_block_size;
+
+        update_surrounding_blocks(h, header_pos, true);
+        update_surrounding_blocks(h, next_header_pos, false);
     } else {
         //@assert cur_block_size >= size + 2;
         int real_size = cur_block_size - size - 2;
         bool prev_alloc = is_prev_alloc(h->heap_mem[header_pos]);
         bool next_alloc = is_next_alloc((h->heap_mem[header_pos]));
         o = make_full_block(h, header_pos, real_size, true, prev_alloc, next_alloc);
+        update_surrounding_blocks(h, header_pos, true);
     }
 
     //@assert header_pos == get_header_pos(o);
-
-    update_surrounding_blocks(h, header_pos, true);
 
     return o;
 }
