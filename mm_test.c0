@@ -7,7 +7,13 @@ int main()
     obj_t o = malloc(h, 10);
     obj_t o1 = malloc(h, 20);
     obj_t o2 = malloc(h, 10);
+    obj_t o3 = malloc(h, 5);
+    obj_t o4 = malloc(h, 6);
     free(h, o2);
+    free(h, o3);
+    free(h, o4);
+    free(h, o1);
+    free(h, o);
     printf("All tests passed. \n");
     return 0;
 }

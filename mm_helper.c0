@@ -320,7 +320,7 @@ void print_block(heap_t* h, int header_pos)
     int size = get_block_size(h->heap_mem[header_pos]);
     int footer_pos = header_pos - 1 + size;
 
-    printf("\nHeader: \n%d block size \n", size);
+    printf("\nHeader: (pos %d)\n%d block size \n", header_pos, size);
     print_metadata(h->heap_mem[header_pos]);
 
     // Lol no need to print freed memory
